@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    volumes:
+      - gitea_data:/data
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__server__DOMAIN=git.yourdomain.com
+      - GITEA__server__ROOT_URL=https://git.yourdomain.com/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitea.rule=Host(`git.yourdomain.com`)"
+      - "traefik.http.routers.gitea.entrypoints=websecure"
+      - "traefik.http.routers.gitea.tls.certresolver=le"
+      - "traefik.http.services.gitea.loadbalancer.server.port=3000"
+    networks:
+      - devnet
+
+networks:
+  devnet:
+    external: true
+
+volumes:
+  gitea_data:
