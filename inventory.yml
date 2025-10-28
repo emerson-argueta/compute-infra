@@ -1,0 +1,14 @@
+node1:
+  ip: 203.0.113.10
+  role: manager
+  services: [swarm, mqtt, postgres, harbor]
+
+node2:
+  ip: 203.0.113.11
+  role: worker
+  gpu: true
+
+devbox:
+  ip: 203.0.113.12
+  role: dev
+  public: true
