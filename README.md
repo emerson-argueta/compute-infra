@@ -28,23 +28,41 @@
 
 ```
 compute-infra/
-├── README.md
+│
+├── README.md                     # Full setup guide
 ├── setup.sh                      # Master installer
 ├── inventory.yml                 # Machine roles
-├── certs/                        # Generated TLS certs
-├── docker/                       # Custom images
+├── certs/                        # TLS certs (generated)
+├── docker/                       # Docker images
+│   └── omarchy-vnc/Dockerfile
 ├── scripts/
 │   ├── node1/                    # PoC cluster
+│   │   ├── swarm-init.sh
+│   │   ├── deploy-poc.sh
+│   │   └── docker-compose.yml
 │   ├── node2/                    # GPU worker
+│   │   └── gpu-setup.sh
 │   ├── devbox/                   # Dev workstation
-│   └── common/                   # Shared scripts
+│   │   ├── tailscale.sh
+│   │   ├── traefik.yml
+│   │   ├── gitea.yml
+│   │   ├── nextcloud.yml
+│   │   └── arch-vnc.yml
+│   └── common/
+│       ├── install-docker.sh
+│       ├── install-nvidia.sh
+│       └── firewall.sh
 ├── cli/
-│   ├── arch-dev                  # CLI tool
+│   ├── arch-dev                  # CLI binary
+│   ├── arch-dev.py               # Source
 │   └── certs/                    # Client certs
 ├── api/
-│   └── api.py                    # Flask API on node3
-└── omarchy/
-    └── base.qcow2                # Omarchy VM template
+│   ├── api.py                    # Flask API on node3
+│   └── requirements.txt
+├── omarchy/
+│   ├── base.qcow2                # Base Omarchy image
+│   └── install.sh                # Auto-install script
+└── .gitignore
 ```
 
 ---
