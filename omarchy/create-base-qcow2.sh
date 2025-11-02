@@ -1,5 +1,5 @@
 #!/bin/bash
-# omarchy/create-base-image.sh
+# omarchy/create-base-qcow2.sh
 # Create the golden base.qcow2 image for Omarchy cloud instances
 # Run ONCE on node3 (or any machine with KVM)
 
