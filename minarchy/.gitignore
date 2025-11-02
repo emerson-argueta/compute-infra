@@ -1,0 +1,4 @@
+omarchy/*.iso
+omarchy/*.sig
+omarchy/base.qcow2
+omarchy/minarchy-iso/
