@@ -1,14 +1,32 @@
-node1:
-  ip: 203.0.113.10
-  role: manager
-  services: [swarm, mqtt, postgres, harbor]
+# compute-infra/inventory.yml
+# SECURE TEMPLATE — DO NOT HARDCODE VALUES
+# Real values come from environment variables or .env.inventory
 
-node2:
-  ip: 203.0.113.11
-  role: worker
-  gpu: true
+- machine: node1
+  ip: ${NODE1_IP}
+  domain: ${NODE1_DOMAIN}
+  env:
+    SWARM_MANAGER: "true"
+    MQTT_ENABLED: "true"
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    HARBOR_ADMIN_PASSWORD: ${HARBOR_ADMIN_PASSWORD}
 
-devbox:
-  ip: 203.0.113.12
-  role: dev
-  public: true
+- machine: node2
+  ip: ${NODE2_IP}
+  domain: ${NODE2_DOMAIN}
+  env:
+    GPU_ENABLED: "true"
+    NVIDIA_VISIBLE_DEVICES: "all"
+    MATH_SERVICE_ENABLED: "true"
+
+- machine: devbox
+  ip: ${DEVBOX_IP}
+  domain: ${DEVBOX_DOMAIN}
+  env:
+    TAILSCALE_AUTHKEY: ${TAILSCALE_AUTHKEY}
+    TRAEFIK_LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    GITEA_ADMIN_USER: ${GITEA_ADMIN_USER}
+    GITEA_ADMIN_PASSWORD: ${GITEA_ADMIN_PASSWORD}
+    NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
+    NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+    ARCH_VNC_BASE_IMAGE: "omarchy/base:latest"
