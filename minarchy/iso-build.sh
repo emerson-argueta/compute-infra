@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Omarchy ISO Builder
-# Part of: compute-infra/omarchy/
-# Builds, tests, and signs the official Omarchy ISO for base.qcow2 creation
+# Minarchy ISO Builder
+# Part of: compute-infra/minarchy/
+# Builds, tests, and signs the official Minarchy ISO for base.qcow2 creation
 # =============================================================================
 
 set -euo pipefail
@@ -10,13 +10,13 @@ set -euo pipefail
 # --- CONFIGURATION -----------------------------------------------------------
 ISO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${ISO_DIR}/minarchy-iso"
-ISO_OUTPUT="${ISO_DIR}/omarchy.iso"
-ISO_OUTPUT_SIGNED="${ISO_DIR}/omarchy.iso.sig"
+ISO_OUTPUT="${ISO_DIR}/minarchy.iso"
+ISO_OUTPUT_SIGNED="${ISO_DIR}/minarchy.iso.sig"
 LOG_FILE="${ISO_DIR}/iso-build.log"
 
 # Your GitHub fork (optional override)
-OMARCHY_ISO_REPO="${OMARCHY_ISO_REPO:-emerson-argueta/minarchy-iso}"
-OMARCHY_ISO_REF="${OMARCHY_ISO_REF:-master}"
+MINARCHY_ISO_REPO="${MINARCHY_ISO_REPO:-emerson-argueta/minarchy-iso}"
+MINARCHY_ISO_REF="${MINARCHY_ISO_REF:-master}"
 
 # GPG key for signing (required)
 GPG_USER="${GPG_USER:-}"
@@ -55,8 +55,8 @@ check_deps() {
 
 # --- MAIN -------------------------------------------------------------------
 main() {
-  log "Starting Omarchy ISO build"
-  log "Repo: $OMARCHY_ISO_REPO @ $OMARCHY_ISO_REF"
+  log "Starting Minarchy ISO build"
+  log "Repo: $MINARCHY_ISO_REPO @ $MINARCHY_ISO_REF"
   log "Output: $ISO_OUTPUT"
   log "GPG User: $GPG_USER"
 
@@ -68,16 +68,16 @@ main() {
 
   # Clone minarchy-iso
   log "Cloning minarchy-iso..."
-  git clone "https://github.com/${OMARCHY_ISO_REPO}.git" "$REPO_DIR"
+  git clone "https://github.com/${MINARCHY_ISO_REPO}.git" "$REPO_DIR"
   pushd "$REPO_DIR" >/dev/null
 
   # Checkout ref
-  git checkout "$OMARCHY_ISO_REF"
+  git checkout "$MINARCHY_ISO_REF"
 
   # Build ISO
   log "Building ISO..."
-  OMARCHY_INSTALLER_REPO="${OMARCHY_INSTALLER_REPO:-basecamp/omarchy}" \
-  OMARCHY_INSTALLER_REF="${OMARCHY_INSTALLER_REF:-master}" \
+  MINARCHY_INSTALLER_REPO="${MINARCHY_INSTALLER_REPO:-emerson-argueta/minarchy}" \
+  MINARCHY_INSTALLER_REF="${MINARCHY_INSTALLER_REF:-master}" \
     ./bin/omarchy-iso-make
 
   # Copy output
@@ -119,8 +119,8 @@ main() {
   fi
 
   popd >/dev/null
-  log "Omarchy ISO ready: $ISO_OUTPUT"
-  log "Use with: ./omarchy/create-base-qcow2.sh"
+  log "Minarchy ISO ready: $ISO_OUTPUT"
+  log "Use with: ./minarchy/create-base-qcow2.sh"
 }
 
 # --- RUN ---------------------------------------------------------------------
