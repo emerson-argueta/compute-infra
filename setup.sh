@@ -53,6 +53,10 @@ install_prereqs() {
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
   fi
 
+    # KVM + libvirt
+  apt install -y qemu-kvm libvirt-clients libvirt-daemon-system virtinst bridge-utils
+  systemctl enable --now libvirtd
+
   log "Prerequisites installed."
 }
 
@@ -206,20 +210,52 @@ main() {
       ;;
 
     devbox)
-      log "Configuring devbox: Global workstation"
-      "${SCRIPT_DIR}/scripts/devbox/tailscale.sh"
+    log "Configuring devbox: Global workstation"
+    "${SCRIPT_DIR}/scripts/devbox/tailscale.sh"
 
-      local services=(traefik gitea nextcloud arch-vnc)
-      for svc in "${services[@]}"; do
-        local yml="${SCRIPT_DIR}/scripts/devbox/${svc}.yml"
-        if [[ -f "$yml" ]]; then
-          log "Deploying $svc..."
-          docker compose -f "$yml" up -d
-        else
-          warn "$yml not found — skipping"
-        fi
-      done
-      ;;
+    # === Deploy Docker services ===
+    local services=(traefik gitea nextcloud)
+    for svc in "${services[@]}"; do
+      local yml="${SCRIPT_DIR}/scripts/devbox/${svc}.yml"
+      if [[ -f "$yml" ]]; then
+        log "Deploying $svc..."
+        docker compose -f "$yml" up -d
+      else
+        warn "$yml not found — skipping"
+      fi
+    done
+
+    # === Start Omarchy KVM VM ===
+    log "Starting Omarchy KVM VM..."
+    local vm_name="omarchy-dev"
+    local vm_xml="${SCRIPT_DIR}/scripts/devbox/omarchy-vm.xml"
+    local base_image="${SCRIPT_DIR}/../../omarchy/base.qcow2"
+    local vm_image="/var/lib/libvirt/images/${vm_name}.qcow2"
+
+    [[ -f "$base_image" ]] || error "base.qcow2 not found at $base_image"
+
+    if [[ ! -f "$vm_image" ]]; then
+      log "Creating VM disk from base image..."
+      cp "$base_image" "$vm_image"
+      chmod 660 "$vm_image"
+    fi
+
+    if ! virsh dominfo "$vm_name" &>/dev/null; then
+      log "Defining VM..."
+      virsh define "$vm_xml"
+    fi
+
+    if ! virsh domstate "$vm_name" | grep -q "running"; then
+      log "Starting VM $vm_name..."
+      virsh start "$vm_name"
+    else
+      log "VM $vm_name already running"
+    fi
+
+    log "Omarchy VM ready"
+    log "  SSH: ssh omarchy@$DEVBOX_IP -p 2222"
+    log "  VNC: vncviewer $DEVBOX_IP:5901"
+    ;;
   esac
 
   log "=== $MACHINE setup complete! ==="
