@@ -54,7 +54,7 @@ install_prereqs() {
   fi
 
     # KVM + libvirt
-  apt install -y qemu-kvm libvirt-clients libvirt-daemon-system virtinst bridge-utils
+  apt install -y qemu-kvm libvirt-clients libvirt-daemon-system virtinst bridge-utils stunnel4
   systemctl enable --now libvirtd
 
   log "Prerequisites installed."
@@ -254,7 +254,8 @@ main() {
 
     log "Omarchy VM ready"
     log "  SSH: ssh omarchy@$DEVBOX_IP -p 2222"
-    log "  VNC: vncviewer $DEVBOX_IP:5901"
+    log " VNC: Run './scripts/devbox/vnc-tunnel.sh' then 'vncviewer localhost:5901'"
+    log "     Or: vncviewer -via $DEVBOX_IP:2222 localhost:5901"
     ;;
   esac
 

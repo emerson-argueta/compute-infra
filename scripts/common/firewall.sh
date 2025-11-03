@@ -71,10 +71,10 @@ case $MACHINE_ROLE in
         # Dev Workstation: Public services + VNC + SSH
         sudo ufw allow 80/tcp    comment "HTTP (Traefik redirect)"
         sudo ufw allow 443/tcp   comment "HTTPS (Traefik)"
-        # === VNC: Direct client access (vncviewer) ===
-        sudo ufw allow 5901/tcp  comment "VNC (Omarchy desktop)"
         # === SSH: Per-user, non-standard port (e.g. 2222) ===
         sudo ufw allow 2222/tcp  comment "SSH (Omarchy user)"
+        # 5901 is BLOCKED — secure by default
+        # VNC is now tunneled over SSH — no direct access
         ;;
 esac
 
