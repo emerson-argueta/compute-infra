@@ -1,22 +1,43 @@
 #!/usr/bin/env python3
-import argparse, requests, sys
+import argparse
+import requests
+import json
+import os
 
-API = "https://node3.yourdomain.com:5000/create"
-CERT = ("~/.arch-dev/node3.crt", "~/.arch-dev/node3.key")
+API_URL = "https://api.yourdomain.com/create"
+CERT_PATH = os.path.expanduser("~/.arch-dev/client.crt")
+KEY_PATH = os.path.expanduser("~/.arch-dev/client.key")
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--ram", required=True)
-    p.add_argument("--storage", required=True)
-    p.add_argument("--host", required=True, choices=["node3"])
-    args = p.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ram', required=True)
+    parser.add_argument('--storage', required=True)
+    parser.add_argument('--host', required=True)
+    args = parser.parse_args()
 
-    r = requests.post(API, json=vars(args), verify=CERT[0], cert=CERT)
-    r.raise_for_status()
-    res = r.json()
-    print(f"VNC: {res['ip']}:{res['vnc_port']}")
-    print(f"SSH: {res['ip']}:{res['ssh_port']}")
-    print("Omarchy ready")
+    payload = {
+        "ram": args.ram,
+        "storage": args.storage,
+        "host": args.host
+    }
 
-if __name__ == "__main__":
+    try:
+        r = requests.post(
+            API_URL,
+            json=payload,
+            cert=(CERT_PATH, KEY_PATH),
+            verify="/path/to/ca.crt"
+        )
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"Error: {e}")
+        return
+
+    print(f"Created: {data['name']}")
+    print(f"SSH: ssh omarchy@{data['host']}.yourdomain.com -p {data['ssh_port']}")
+    print(f"VNC: vncviewer -via {data['host']}.yourdomain.com:{data['ssh_port']} localhost:5901")
+    print(data['message'])
+
+if __name__ == '__main__':
     main()

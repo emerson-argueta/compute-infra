@@ -59,8 +59,8 @@ compute-infra/
 ├── api/
 │   ├── api.py                    # Flask API on node3
 │   └── requirements.txt
-├── omarchy/
-│   ├── base.qcow2                # Base Omarchy image
+├── minarchy/
+│   ├── create-base-qcow2.sh      # Base Minarchy image
 │   └── install.sh                # Auto-install script
 └── .gitignore
 ```
@@ -140,8 +140,12 @@ Omarchy ready — connect and code
 ### Connect
 
 ```bash
+# Run the helper
+./scripts/devbox/vnc-tunnel.sh
 # VNC (browser or client)
 vncviewer 203.0.113.10:6201
+# OR one-liner (anywhere):
+vncviewer -via devbox.yourdomain.com:2222 localhost:5901
 
 # SSH
 ssh -p 2215 omarchy@203.0.113.10

@@ -11,20 +11,30 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik_acme:/acme.json
-      - ./dynamic:/etc/traefik/dynamic
+      - ./dynamic:/etc/traefik/dynamic:ro
     command:
+      - "--log.level=INFO"
       - "--api.insecure=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=devnet"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-      - "--certificatesresolvers.le.acme.email=you@example.com"
+      - "--certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}"
       - "--certificatesresolvers.le.acme.storage=/acme.json"
     networks:
       - devnet
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_FQDN}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=le"
+      - "traefik.http.routers.traefik.service=api@internal"
 
 networks:
   devnet:
@@ -32,3 +42,4 @@ networks:
 
 volumes:
   traefik_acme:
+    driver: local

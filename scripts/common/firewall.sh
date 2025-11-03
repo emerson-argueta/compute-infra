@@ -75,6 +75,9 @@ case $MACHINE_ROLE in
         sudo ufw allow 2222/tcp  comment "SSH (Omarchy user)"
         # 5901 is BLOCKED — secure by default
         # VNC is now tunneled over SSH — no direct access
+        devbox)
+        sudo ufw allow 2200:2299/tcp
+        sudo ufw allow 5000/tcp comment "arch-dev API"
         ;;
 esac
 

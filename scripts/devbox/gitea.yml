@@ -1,3 +1,4 @@
+# scripts/devbox/gitea.yml
 version: "3.8"
 
 services:
@@ -10,11 +11,16 @@ services:
     environment:
       - USER_UID=1000
       - USER_GID=1000
-      - GITEA__server__DOMAIN=git.yourdomain.com
-      - GITEA__server__ROOT_URL=https://git.yourdomain.com/
+      # ---- dynamic values from inventory.yml ----
+      - GITEA__server__DOMAIN=${GITEA_FQDN}
+      - GITEA__server__ROOT_URL=https://${GITEA_FQDN}/
+      # admin credentials from .env.inventory (optional, can be omitted)
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__admin__USERNAME=${GITEA_ADMIN_USER:-admin}
+      - GITEA__admin__PASSWORD=${GITEA_ADMIN_PASSWORD}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.gitea.rule=Host(`git.yourdomain.com`)"
+      - "traefik.http.routers.gitea.rule=Host(`${GITEA_FQDN}`)"
       - "traefik.http.routers.gitea.entrypoints=websecure"
       - "traefik.http.routers.gitea.tls.certresolver=le"
       - "traefik.http.services.gitea.loadbalancer.server.port=3000"

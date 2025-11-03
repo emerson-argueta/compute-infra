@@ -31,8 +31,9 @@ install_prereqs() {
   log "Installing system prerequisites..."
   apt update -y
   apt install -y \
-    ca-certificates curl gnupg lsb-release software-properties-common jq
-
+    ca-certificates curl gnupg lsb-release software-properties-common jq \
+    qemu-kvm libvirt-clients libvirt-daemon-system virtinst \
+    bridge-utils stunnel4 libguestfs-tools
   # yq
   if ! command -v yq &>/dev/null; then
     log "Installing yq..."
@@ -53,8 +54,6 @@ install_prereqs() {
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
   fi
 
-    # KVM + libvirt
-  apt install -y qemu-kvm libvirt-clients libvirt-daemon-system virtinst bridge-utils stunnel4
   systemctl enable --now libvirtd
 
   log "Prerequisites installed."
@@ -252,6 +251,32 @@ main() {
       log "VM $vm_name already running"
     fi
 
+    # === Inject SSH public key into VM ===
+    log "Injecting SSH key into Omarchy VM..."
+    local ssh_pubkey="${OMARCHY_SSH_PUBKEY:-}"
+    [[ -n "$ssh_pubkey" ]] || { warn "OMARCHY_SSH_PUBKEY not set — password login only"; return; }
+
+    # Wait for VM to be ready
+    until virsh domstate "$vm_name" | grep -q "running" && \
+          ping -c1 -W1 "$(virsh domifaddr "$vm_name" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')" &>/dev/null; do
+      sleep 2
+    done
+
+    local vm_ip
+    vm_ip=$(virsh domifaddr "$vm_name" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+    log "VM IP: $vm_ip"
+
+    echo "$ssh_pubkey" > /tmp/authorized_keys
+    virt-copy-in -d "$vm_name" /tmp/authorized_keys /home/omarchy/.ssh/
+    rm /tmp/authorized_keys
+
+    guestfish --rw -d "$vm_name" -i <<EOF
+chmod 700 /home/omarchy/.ssh
+chmod 600 /home/omarchy/.ssh/authorized_keys
+chown 1000:1000 /home/omarchy/.ssh -R
+EOF
+
+    log "SSH key injected — passwordless login ready"
     log "Omarchy VM ready"
     log "  SSH: ssh omarchy@$DEVBOX_IP -p 2222"
     log " VNC: Run './scripts/devbox/vnc-tunnel.sh' then 'vncviewer localhost:5901'"

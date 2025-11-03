@@ -1,0 +1,16 @@
+# scripts/devbox/dynamic/api.yml
+http:
+  routers:
+    api:
+      rule: Host(`api.devbox.yourdomain.com`)
+      service: arch-dev-api
+      entrypoints:
+        - websecure
+      tls:
+        certresolver: le
+
+  services:
+    arch-dev-api:
+      loadBalancer:
+        servers:
+          - url: "http://arch-dev-api:5000"

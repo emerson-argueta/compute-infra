@@ -22,6 +22,11 @@
 - machine: devbox
   ip: ${DEVBOX_IP}
   domain: ${DEVBOX_DOMAIN}
+  subdomains:
+    api: api
+    traefik: traefik
+    gitea: git
+    nextcloud: files
   env:
     TAILSCALE_AUTHKEY: ${TAILSCALE_AUTHKEY}
     TRAEFIK_LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
