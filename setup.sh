@@ -102,7 +102,10 @@ load_secrets_and_validate() {
     NODE1_DOMAIN NODE2_DOMAIN DEVBOX_DOMAIN
     TAILSCALE_AUTHKEY LETSENCRYPT_EMAIL
     POSTGRES_PASSWORD HARBOR_ADMIN_PASSWORD
-    GITEA_ADMIN_PASSWORD NEXTCLOUD_ADMIN_PASSWORD
+    GITEA_ADMIN_USER GITEA_ADMIN_PASSWORD
+    NEXTCLOUD_ADMIN_USER NEXTCLOUD_ADMIN_PASSWORD
+    NEXTCLOUD_DB_ROOT_PASSWORD NEXTCLOUD_DB_PASSWORD
+    OMARCHY_SSH_PUBKEY
   )
 
   local -a missing=()
@@ -144,6 +147,22 @@ load_inventory() {
     export "$key"="$value"
     info " $key=$value"
   done < <(echo "$yaml" | yq e '.env // {} | to_entries | .[] | .key + "=" + .value' -)
+  # === Export FQDNs from inventory.yml (devbox only) ===
+  if [[ "$MACHINE" == "devbox" ]]; then
+    local DEVBOX_YAML
+    DEVBOX_YAML=$(yq e '.[] | select(.machine == "devbox")' "$INVENTORY")
+    [[ -n "$DEVBOX_YAML" ]] || error "devbox not found in inventory.yml"
+    export DEVBOX_DOMAIN=$(echo "$DEVBOX_YAML" | yq e '.domain' -)
+    export API_FQDN=$(echo "$DEVBOX_YAML" | yq e '.subdomains.api + "." + .domain' -)
+    export TRAEFIK_FQDN=$(echo "$DEVBOX_YAML" | yq e '.subdomains.traefik + "." + .domain' -)
+    export GITEA_FQDN=$(echo "$DEVBOX_YAML" | yq e '.subdomains.gitea + "." + .domain' -)
+    export NEXTCLOUD_FQDN=$(echo "$DEVBOX_YAML" | yq e '.subdomains.nextcloud + "." + .domain' -)
+    log "FQDNs:"
+    log "  API:        https://$API_FQDN"
+    log "  Traefik:    https://$TRAEFIK_FQDN"
+    log "  Gitea:      https://$GITEA_FQDN"
+    log "  Nextcloud:  https://$NEXTCLOUD_FQDN"
+  fi
 }
 
 # -------------------------------------------------------------------------
@@ -213,7 +232,7 @@ main() {
     "${SCRIPT_DIR}/scripts/devbox/tailscale.sh"
 
     # === Deploy Docker services ===
-    local services=(traefik gitea nextcloud)
+    local services=(traefik gitea nextcloud api)
     for svc in "${services[@]}"; do
       local yml="${SCRIPT_DIR}/scripts/devbox/${svc}.yml"
       if [[ -f "$yml" ]]; then
@@ -284,9 +303,28 @@ EOF
     ;;
   esac
 
-  log "=== $MACHINE setup complete! ==="
-  log "Log: $LOG_FILE"
-  log "Next: Run on other machines or use arch-dev CLI"
+  # === Final CLI Setup (devbox only) ===
+  if [[ "$MACHINE" == "devbox" ]]; then
+    log "Preparing arch-dev CLI for users..."
+    sudo mkdir -p /opt/compute-infra/cli
+    sudo cp "${SCRIPT_DIR}/inventory.yml" /opt/compute-infra/cli/inventory.yml
+    sudo cp "${SCRIPT_DIR}/cli/arch-dev" /opt/compute-infra/cli/arch-dev
+    sudo chmod +x /opt/compute-infra/cli/arch-dev
+
+    log "CLI ready. Users should run:"
+    log "  scp $DEVBOX_IP:/opt/compute-infra/cli/inventory.yml ~/.arch-dev/"
+    log "  scp $DEVBOX_IP:/opt/compute-infra/cli/arch-dev ~/.local/bin/"
+    log "  chmod +x ~/.local/bin/arch-dev"
+    log ""
+    log "Then launch VMs with:"
+    log "  arch-dev --ram 8G --storage 50G --host devbox"
+  fi
+
+   ;;
+   esac
+   log "=== $MACHINE setup complete! ==="
+   log "Log: $LOG_FILE"
++  log "Next: Run on other machines or use 'arch-dev' CLI from your laptop"
 }
 
 # ------------------------------- RUN -----------------------------------------

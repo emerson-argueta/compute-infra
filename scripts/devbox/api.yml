@@ -4,12 +4,19 @@ services:
     image: python:3.11-slim
     container_name: arch-dev-api
     restart: unless-stopped
+    privileged: true
+    working_dir: /opt/compute-infra/api
     volumes:
       - /opt/compute-infra:/opt/compute-infra
       - /var/lib/libvirt/images:/var/lib/libvirt/images
+      - /root/.ssh:/root/.ssh:ro          # SSH key for node1/node2
+    environment:
+      - PYTHONUNBUFFERED=1
     command: >
-      sh -c "pip install flask && python /opt/compute-infra/api/api.py"
-    privileged: true
+      sh -c "
+      pip install --no-cache-dir flask pyyaml &&
+      python api.py
+      "
     networks:
       - devnet
     labels:
