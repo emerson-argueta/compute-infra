@@ -15,7 +15,7 @@
 | Feature | Status |
 |-------|--------|
 | **One-command setup** per machine | `setup.sh --machine node1` |
-| **Omarchy VNC compute instances** | `arch-dev --ram 8G --storage 50G --host node3` |
+| **Omarchy VNC compute instances** | `arch-dev --ram 8G --storage 50G --host devbox` |
 | **Secure VNC + SSH** | TLS-wrapped VNC, SSH key-only |
 | **Global access** | Tailscale + Traefik + Let’s Encrypt |
 | **Git + Files** | Gitea + Nextcloud |
@@ -39,8 +39,8 @@
 ## Step 1: Clone & Bootstrap
 
 ```bash
-git clone https://git.yourdomain.com/infra/3node.git
-cd 3node
+git clone https://git.yourdomain.com/infra/compute-infra.git
+cd compute-infra
 ```
 
 ---
@@ -73,8 +73,8 @@ cd 3node
 
 ```bash
 # Copy from devbox
-scp devbox:~/3node/cli/arch-dev ~/.local/bin/
-scp -r devbox:~/3node/cli/certs ~/.arch-dev/
+scp devbox:~/compute-infra/cli/arch-dev ~/.local/bin/
+scp -r devbox:~/compute-infra/cli/certs ~/.arch-dev/
 
 # Or install from repo
 cp cli/arch-dev ~/.local/bin/
@@ -84,7 +84,7 @@ mkdir -p ~/.arch-dev && cp cli/certs/* ~/.arch-dev/
 ### Launch Omarchy Instance
 
 ```bash
-arch-dev --ram 8G --storage 50G --host node3
+arch-dev --ram 8G --storage 50G --host devbox
 ```
 
 **Output:**
