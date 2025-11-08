@@ -32,80 +32,174 @@
 | `node2` | Ubuntu 22.04 LTS | Private |
 | `devbox` | Ubuntu 22.04 LTS | Public IP |
 
-> All machines must have **64 GB RAM** and **SSD**.
+---
+
+# **DEVBOX SETUP GUIDE**  
+**Ubuntu 22.04 LTS → Fully Secure, Terminal-Only Cloud Workstation**
+
+> **Time: 15 minutes**  
+> **Requirements:**  
+> - Ubuntu 22.04 LTS (fresh install)  
+> - Public IP + DNS A record → `devbox.yourdomain.com`  
+> - 64 GB RAM + SSD  
+> - Internet access
 
 ---
 
-## Step 1: Clone & Bootstrap
+## **STEP 1: Clone the Repo**
 
 ```bash
+sudo apt update && sudo apt install -y git
 git clone https://git.yourdomain.com/infra/compute-infra.git
 cd compute-infra
 ```
 
 ---
 
-## Step 2: Install on Each Machine
-
-### On `node1` (PoC Manager)
+## **STEP 2: Create `.env.inventory` (Secrets)**
 
 ```bash
-./setup.sh --machine node1
+nano .env.inventory
 ```
 
-### On `node2` (GPU Worker)
+**Paste this — replace with your real values:**
 
-```bash
-./setup.sh --machine node2
+```env
+# === IPs ===
+NODE1_IP=203.0.113.10
+NODE2_IP=10.0.0.2
+DEVBOX_IP=203.0.113.20
+
+# === Domains ===
+NODE1_DOMAIN=node1.yourdomain.com
+NODE2_DOMAIN=node2.yourdomain.com
+DEVBOX_DOMAIN=devbox.yourdomain.com
+
+# === Secrets ===
+TAILSCALE_AUTHKEY=tskey-auth-abc123def456ghi789
+LETSENCRYPT_EMAIL=you@yourdomain.com
+
+POSTGRES_PASSWORD=supersecret123
+HARBOR_ADMIN_PASSWORD=admin123
+
+GITEA_ADMIN_USER=admin
+GITEA_ADMIN_PASSWORD=giteapass123
+
+NEXTCLOUD_ADMIN_USER=admin
+NEXTCLOUD_ADMIN_PASSWORD=nextcloudpass123
+NEXTCLOUD_DB_ROOT_PASSWORD=rootpass123
+NEXTCLOUD_DB_PASSWORD=dbpass123
+
+# Your SSH public key (for Omarchy VMs)
+OMARCHY_SSH_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... you@yourlaptop"
 ```
 
-### On `devbox` (Dev Workstation)
+> **Save: `Ctrl+O` → Enter → `Ctrl+X`**
+
+---
+
+## **STEP 3: Run Setup (One Command)**
 
 ```bash
-./setup.sh --machine devbox
+sudo ./setup.sh --machine devbox
+```
+
+**What it does:**
+1. Installs Docker, KVM, Tailscale, Traefik
+2. Sets up UFW firewall (only 80/443 + Tailscale)
+3. Deploys:
+   - `traefik` (HTTPS reverse proxy)
+   - `gitea` (Git)
+   - `nextcloud` (Files)
+   - `arch-dev-api` (VM manager)
+4. Copies `arch-dev` CLI to `/opt/compute-infra/cli/`
+
+---
+
+## **STEP 4: Verify Services**
+
+Wait 60 seconds, then:
+
+```bash
+curl -k https://localhost/health
+# → {"status":"ok"}
+```
+
+Check URLs (from anywhere):
+
+| Service | URL |
+|-------|-----|
+| Traefik Dashboard | `https://traefik.devbox.yourdomain.com` |
+| Gitea | `https://git.devbox.yourdomain.com` |
+| Nextcloud | `https://files.devbox.yourdomain.com` |
+
+> **All use Let’s Encrypt TLS automatically.**
+
+---
+
+## **STEP 5: Install `arch-dev` CLI on Your Laptop**
+
+```bash
+# From your laptop
+scp devbox.yourdomain.com:/opt/compute-infra/cli/arch-dev ~/.local/bin/
+scp devbox.yourdomain.com:/opt/compute-infra/cli/inventory.yml ~/.arch-dev/
+chmod +x ~/.local/bin/arch-dev
 ```
 
 ---
 
-## Step 3: Use the `arch-dev` CLI
-
-### Install CLI (on your laptop)
+## **STEP 6: Launch Your First Omarchy VM**
 
 ```bash
-# Copy from devbox
-scp devbox:~/compute-infra/cli/arch-dev ~/.local/bin/
-scp -r devbox:~/compute-infra/cli/certs ~/.arch-dev/
-
-# Or install from repo
-cp cli/arch-dev ~/.local/bin/
-mkdir -p ~/.arch-dev && cp cli/certs/* ~/.arch-dev/
+arch-dev create --ram 8G --storage 50G --host devbox
 ```
 
-### Launch Omarchy Instance
-
-```bash
-arch-dev --ram 8G --storage 50G --host devbox
+**Example Output:**
 ```
-
-**Output:**
-```
-Created: omarchy-8g-50g-a1b2c3
+Created: omarchy-8g-50g-x7f9
 SSH: ssh omarchy@devbox.yourdomain.com -p 2217
 VNC: vncviewer -via devbox.yourdomain.com:2217 localhost:5901
 Omarchy ready — connect and code
 ```
 
-### Connect
+---
+
+## **STEP 7: Connect**
 
 ```bash
-# Run the helper
-vncviewer -via devbox.yourdomain.com:2222 localhost:5901
-
 # SSH
-ssh -p 2215 omarchy@203.0.113.10
+ssh omarchy@devbox.yourdomain.com -p 2217
+
+# VNC (graphical desktop)
+vncviewer -via devbox.yourdomain.com:2217 localhost:5901
 ```
 
-> Your **Omarchy desktop** boots — **Neovim, git, build tools — all preinstalled**.
+> **You now have a full Arch Linux desktop with Neovim, git, build tools.**
+
+---
+
+## **Done! Your Devbox Is Live**
+
+| Command | Use |
+|-------|-----|
+| `arch-dev list` | Show running VMs |
+| `arch-dev kill omarchy-8g-50g-x7f9` | Destroy VM |
+| `tailscale status` | Check private network |
+| `sudo ufw status verbose` | Verify firewall |
+
+---
+
+## **Next: Set Up `node1` and `node2`**
+
+```bash
+# On node1
+sudo ./setup.sh --machine node1
+
+# On node2
+sudo ./setup.sh --machine node2
+```
+
+> They’ll auto-join Swarm and connect via Tailscale.
 
 ---
 
