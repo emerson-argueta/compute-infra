@@ -89,5 +89,6 @@ log "Firewall rules applied:"
 sudo ufw status verbose
 
 log "UFW firewall configured and active."
-log "  VNC: vncviewer devbox.yourdomain.com:5901"
-log "  SSH: ssh omarchy@devbox.yourdomain.com -p 2222"
+log " VNC: vncviewer -via <host>.<domain>:<ssh_port> localhost:5901"
+log " SSH: ssh omarchy@<host>.<domain> -p <ssh_port>"
+log " Use 'arch-dev create' for real ports"

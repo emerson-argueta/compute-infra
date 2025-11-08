@@ -210,7 +210,6 @@ main() {
       "${SCRIPT_DIR}/scripts/node1/swarm-init.sh"
       "${SCRIPT_DIR}/scripts/node1/deploy-poc.sh"
       ;;
-
     node2)
       log "Configuring node2: GPU worker"
       "${SCRIPT_DIR}/scripts/node2/gpu-setup.sh"
@@ -226,7 +225,6 @@ main() {
         warn "Swarm token not found. Run setup on node1 first."
       fi
       ;;
-
     devbox)
       log "Configuring devbox: Global workstation"
       "${SCRIPT_DIR}/scripts/devbox/tailscale.sh"
@@ -256,29 +254,9 @@ main() {
       log "Then: arch-dev create --ram 8G --storage 50G --host devbox"
     ;;
   esac
-
-  # === Final CLI Setup (devbox only) ===
-  if [[ "$MACHINE" == "devbox" ]]; then
-    log "Preparing arch-dev CLI for users..."
-    sudo mkdir -p /opt/compute-infra/cli
-    sudo cp "${SCRIPT_DIR}/inventory.yml" /opt/compute-infra/cli/inventory.yml
-    sudo cp "${SCRIPT_DIR}/cli/arch-dev" /opt/compute-infra/cli/arch-dev
-    sudo chmod +x /opt/compute-infra/cli/arch-dev
-
-    log "CLI ready. Users should run:"
-    log "  scp $DEVBOX_IP:/opt/compute-infra/cli/inventory.yml ~/.arch-dev/"
-    log "  scp $DEVBOX_IP:/opt/compute-infra/cli/arch-dev ~/.local/bin/"
-    log "  chmod +x ~/.local/bin/arch-dev"
-    log ""
-    log "Then launch VMs with:"
-    log "  arch-dev --ram 8G --storage 50G --host devbox"
-  fi
-
-   ;;
-   esac
-   log "=== $MACHINE setup complete! ==="
-   log "Log: $LOG_FILE"
-+  log "Next: Run on other machines or use 'arch-dev' CLI from your laptop"
+ log "=== $MACHINE setup complete! ==="
+ log "Log: $LOG_FILE"
+ log "Next: Run on other machines or use 'arch-dev' CLI from your laptop"
 }
 
 # ------------------------------- RUN -----------------------------------------
