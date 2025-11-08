@@ -228,78 +228,32 @@ main() {
       ;;
 
     devbox)
-    log "Configuring devbox: Global workstation"
-    "${SCRIPT_DIR}/scripts/devbox/tailscale.sh"
+      log "Configuring devbox: Global workstation"
+      "${SCRIPT_DIR}/scripts/devbox/tailscale.sh"
 
-    # === Deploy Docker services ===
-    local services=(traefik gitea nextcloud api)
-    for svc in "${services[@]}"; do
-      local yml="${SCRIPT_DIR}/scripts/devbox/${svc}.yml"
-      if [[ -f "$yml" ]]; then
-        log "Deploying $svc..."
-        docker compose -f "$yml" up -d
-      else
-        warn "$yml not found — skipping"
-      fi
-    done
+      # === Deploy Docker services ===
+      local services=(traefik gitea nextcloud api)
+      for svc in "${services[@]}"; do
+          local yml="${SCRIPT_DIR}/scripts/devbox/${svc}.yml"
+          if [[ -f "$yml" ]]; then
+              log "Deploying $svc..."
+              docker compose -f "$yml" up -d
+          else
+              warn "$yml not found — skipping"
+          fi
+      done
 
-    # === Start Omarchy KVM VM ===
-    log "Starting Omarchy KVM VM..."
-    local vm_name="omarchy-dev"
-    local vm_xml="${SCRIPT_DIR}/scripts/devbox/omarchy-vm.xml"
-    local base_image="${SCRIPT_DIR}/../../omarchy/base.qcow2"
-    local vm_image="/var/lib/libvirt/images/${vm_name}.qcow2"
-
-    [[ -f "$base_image" ]] || error "base.qcow2 not found at $base_image"
-
-    if [[ ! -f "$vm_image" ]]; then
-      log "Creating VM disk from base image..."
-      cp "$base_image" "$vm_image"
-      chmod 660 "$vm_image"
-    fi
-
-    if ! virsh dominfo "$vm_name" &>/dev/null; then
-      log "Defining VM..."
-      virsh define "$vm_xml"
-    fi
-
-    if ! virsh domstate "$vm_name" | grep -q "running"; then
-      log "Starting VM $vm_name..."
-      virsh start "$vm_name"
-    else
-      log "VM $vm_name already running"
-    fi
-
-    # === Inject SSH public key into VM ===
-    log "Injecting SSH key into Omarchy VM..."
-    local ssh_pubkey="${OMARCHY_SSH_PUBKEY:-}"
-    [[ -n "$ssh_pubkey" ]] || { warn "OMARCHY_SSH_PUBKEY not set — password login only"; return; }
-
-    # Wait for VM to be ready
-    until virsh domstate "$vm_name" | grep -q "running" && \
-          ping -c1 -W1 "$(virsh domifaddr "$vm_name" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')" &>/dev/null; do
-      sleep 2
-    done
-
-    local vm_ip
-    vm_ip=$(virsh domifaddr "$vm_name" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
-    log "VM IP: $vm_ip"
-
-    echo "$ssh_pubkey" > /tmp/authorized_keys
-    virt-copy-in -d "$vm_name" /tmp/authorized_keys /home/omarchy/.ssh/
-    rm /tmp/authorized_keys
-
-    guestfish --rw -d "$vm_name" -i <<EOF
-chmod 700 /home/omarchy/.ssh
-chmod 600 /home/omarchy/.ssh/authorized_keys
-chown 1000:1000 /home/omarchy/.ssh -R
-EOF
-
-    log "SSH key injected — passwordless login ready"
-    log "Omarchy VM ready"
-    log "  SSH: ssh omarchy@$DEVBOX_IP -p 2222"
-    log " VNC: Run './scripts/devbox/vnc-tunnel.sh' then 'vncviewer localhost:5901'"
-    log "     Or: vncviewer -via $DEVBOX_IP:2222 localhost:5901"
+      # === Final CLI Setup ===
+      log "Preparing arch-dev CLI for users..."
+      sudo mkdir -p /opt/compute-infra/cli
+      sudo cp "${SCRIPT_DIR}/inventory.yml" /opt/compute-infra/cli/inventory.yml
+      sudo cp "${SCRIPT_DIR}/cli/arch-dev" /opt/compute-infra/cli/arch-dev
+      sudo chmod +x /opt/compute-infra/cli/arch-dev
+      log "CLI ready. Users should run:"
+      log " scp $DEVBOX_IP:/opt/compute-infra/cli/inventory.yml ~/.arch-dev/"
+      log " scp $DEVBOX_IP:/opt/compute-infra/cli/arch-dev ~/.local/bin/"
+      log " chmod +x ~/.local/bin/arch-dev"
+      log "Then: arch-dev create --ram 8G --storage 50G --host devbox"
     ;;
   esac
 

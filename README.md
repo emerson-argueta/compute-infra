@@ -89,8 +89,9 @@ arch-dev --ram 8G --storage 50G --host node3
 
 **Output:**
 ```
-VNC (TLS): 203.0.113.10:6201
-SSH (key): 203.0.113.10:2215
+Created: omarchy-8g-50g-a1b2c3
+SSH: ssh omarchy@devbox.yourdomain.com -p 2217
+VNC: vncviewer -via devbox.yourdomain.com:2217 localhost:5901
 Omarchy ready — connect and code
 ```
 
@@ -98,10 +99,6 @@ Omarchy ready — connect and code
 
 ```bash
 # Run the helper
-./scripts/devbox/vnc-tunnel.sh
-# VNC (browser or client)
-vncviewer 203.0.113.10:6201
-# OR one-liner (anywhere):
 vncviewer -via devbox.yourdomain.com:2222 localhost:5901
 
 # SSH

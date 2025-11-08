@@ -68,16 +68,15 @@ case $MACHINE_ROLE in
         ;;
 
     devbox)
-        # Dev Workstation: Public services + VNC + SSH
-        sudo ufw allow 80/tcp    comment "HTTP (Traefik redirect)"
-        sudo ufw allow 443/tcp   comment "HTTPS (Traefik)"
-        # === SSH: Per-user, non-standard port (e.g. 2222) ===
-        sudo ufw allow 2222/tcp  comment "SSH (Omarchy user)"
-        # 5901 is BLOCKED — secure by default
-        # VNC is now tunneled over SSH — no direct access
-        devbox)
-        sudo ufw allow 2200:2299/tcp
-        sudo ufw allow 5000/tcp comment "arch-dev API"
+        # Public: only Traefik
+        sudo ufw allow 80/tcp comment "HTTP → HTTPS"
+        sudo ufw allow 443/tcp comment "HTTPS (Traefik)"
+        # API: ONLY from Tailscale
+        sudo ufw allow in on tailscale0 to any port 5000 comment "arch-dev API (mTLS)"
+        # SSH to VMs: ONLY from Tailscale
+        sudo ufw allow in on tailscale0 to any port 2200:2299 proto tcp comment "VM SSH (ephemeral)"
+        # Emergency SSH
+        sudo ufw allow 22/tcp comment "Emergency SSH"
         ;;
 esac
 
