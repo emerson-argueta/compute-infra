@@ -1,94 +1,57 @@
 #!/usr/bin/env bash
-# scripts/common/firewall.sh
-# Secure UFW firewall for 3-node infra
-# NO BROWSER. Only: SSH + VNC Client (vncviewer)
+# scripts/common/firewall.sh — safe & minimal
 set -euo pipefail
 
-log()   { echo "[+] $*"; }
-warn()  { echo "[!] $*"; }
-error() { echo "[ERROR] $*"; exit 1; }
+log() { echo "[+] $*"; }
 
-log "Configuring UFW firewall..."
+# Detect Tailscale interface (works even if not up yet)
+TS_IFACE="$(ip -j link | jq -r '.[] | select(.operstate=="UP" and .link_type=="ether" and .address|test(".:.:.:.:.:.")) | .ifname' | head -n1 || echo "tailscale0")"
 
-# === 1. Enable UFW (deny by default) ===
-if ! sudo ufw status | grep -q "Status: active"; then
-    log "Enabling UFW with deny-by-default..."
-    sudo ufw --force reset
-    sudo ufw default deny incoming
-    sudo ufw default allow outgoing
-    sudo ufw --force enable
+log "Using Tailscale interface: $TS_IFACE"
+
+# Reset only reset if we are the ones who created the rules (idempotent + safe)
+if ufw status | grep -q "compute-infra"; then
+    log "Existing compute-infra rules found → deleting only ours"
+    ufw --force delete $(ufw status numbered | grep compute-infra | awk -F'[][]' '{print $2}' | tac)
 else
-    log "UFW already active. Resetting rules..."
-    sudo ufw --force reset
-    sudo ufw default deny incoming
-    sudo ufw default allow outgoing
+    log "No previous compute-infra rules → full reset (first run)"
+    ufw --force reset
 fi
 
-# === 2. Allow SSH (emergency access on 22) ===
-log "Allowing SSH (port 22)..."
-sudo ufw allow 22/tcp comment "SSH (emergency)"
+ufw default deny incoming
+ufw default allow outgoing
 
-# === 3. Allow Tailscale (private network) ===
-log "Allowing Tailscale..."
-sudo ufw allow in on tailscale0 comment "Tailscale"
-sudo ufw allow out on tailscale0 comment "Tailscale"
+# Tailscale – always allowed in both directions
+ufw allow in  on "$TS_IFACE"  comment "Tailscale inbound – compute-infra"
+ufw allow out on "$TS_IFACE"  comment "Tailscale outbound – compute-infra"
 
-# === 4. Machine-specific rules ===
-MACHINE_ROLE=""
-case $(hostname) in
-    node1*)  MACHINE_ROLE="node1"  ;;
-    node2*)  MACHINE_ROLE="node2"  ;;
-    devbox*) MACHINE_ROLE="devbox" ;;
-    *)       warn "Unknown hostname. Using default rules." ;;
-esac
+# Docker Swarm – ONLY on Tailscale interface
+ufw allow in on "$TS_IFACE" to any port 2376,2377 proto tcp comment "Swarm mgmt – compute-infra"
+ufw allow in on "$TS_IFACE" to any port 7946     proto tcp comment "Swarm overlay – compute-infra"
+ufw allow in on "$TS_IFACE" to any port 7946     proto udp comment "Swarm overlay – compute-infra"
+ufw allow in on "$TS_IFACE" to any port 4789     proto udp comment "Swarm VXLAN – compute-infra"
 
-log "Applying rules for $MACHINE_ROLE..."
+# devbox only – public HTTP/S
+if [[ "$(hostname)" == devbox* ]] || -n "${DEVBOX_IP:-}" ]]; then
+    ufw allow 80/tcp   comment "HTTP → HTTPS redirect – compute-infra"
+    ufw allow 443/tcp  comment "HTTPS Traefik – compute-infra"
+fi
 
-case $MACHINE_ROLE in
-    node1)
-        # PoC Manager: Swarm, MQTT, Postgres, Harbor, API
-        sudo ufw allow 2376/tcp  comment "Docker Swarm (TLS)"
-        sudo ufw allow 2377/tcp  comment "Swarm cluster mgmt"
-        sudo ufw allow 7946/tcp  comment "Swarm overlay"
-        sudo ufw allow 7946/udp  comment "Swarm overlay"
-        sudo ufw allow 4789/udp  comment "Swarm VXLAN"
-        sudo ufw allow 1883/tcp  comment "MQTT"
-        sudo ufw allow 5432/tcp  comment "PostgreSQL"
-        sudo ufw allow 5000/tcp  comment "Harbor Registry"
-        sudo ufw allow 8080/tcp  comment "arch-dev API"
-        ;;
+# Omarchy VM ports – ONLY from Tailscale
+ufw allow in on "$TS_IFACE" to any port 2200:2299 proto tcp comment "Omarchy SSH ports – compute-infra"
+ufw allow in on "$TS_IFACE" to any port 5900:5999 proto tcp comment "Omarchy VNC ports – compute-infra"
 
-    node2)
-        # GPU Worker: Only Swarm
-        sudo ufw allow 2376/tcp  comment "Docker Swarm"
-        sudo ufw allow 2377/tcp  comment "Swarm cluster"
-        sudo ufw allow 7946/tcp  comment "Swarm overlay"
-        sudo ufw allow 7946/udp  comment "Swarm overlay"
-        sudo ufw allow 4789/udp  comment "Swarm VXLAN"
-        ;;
+# arch-dev API – only Tailscale
+ufw allow in on "$TS_IFACE" to any port 5000 proto tcp comment "arch-dev API – compute-infra"
 
-    devbox)
-        # Public: only Traefik
-        sudo ufw allow 80/tcp comment "HTTP → HTTPS"
-        sudo ufw allow 443/tcp comment "HTTPS (Traefik)"
-        # API: ONLY from Tailscale
-        sudo ufw allow in on tailscale0 to any port 5000 comment "arch-dev API (mTLS)"
-        # SSH to VMs: ONLY from Tailscale
-        sudo ufw allow in on tailscale0 to any port 2200:2299 proto tcp comment "VM SSH (ephemeral)"
-        # Emergency SSH
-        sudo ufw allow 22/tcp comment "Emergency SSH"
-        ;;
-esac
+# Emergency SSH – restrict to your personal IP or Tailscale only if possible
+# Change 203.0.113.0/24 to your home/office public subnet or remove entirely
+# ufw allow from 203.0.113.0/24 to any port 22 proto tcp comment "Emergency SSH – compute-infra"
 
-# === 5. Reload UFW ===
-log "Reloading UFW..."
-sudo ufw reload
+# OPTIONAL: completely disable public SSH (recommended)
+# comment the line above and leave only this:
+ufw delete allow 22 2>/dev/null || true
 
-# === 6. Show final rules ===
-log "Firewall rules applied:"
-sudo ufw status verbose
-
-log "UFW firewall configured and active."
-log " VNC: vncviewer -via <host>.<domain>:<ssh_port> localhost:5901"
-log " SSH: ssh omarchy@<host>.<domain> -p <ssh_port>"
-log " Use 'arch-dev create' for real ports"
+ufw --force enable
+log "Firewall configured. Only Tailscale + (on devbox) 80/443 are reachable."
+ufw status verbose
