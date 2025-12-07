@@ -1,71 +1,56 @@
 # Compute Infra
+**Secure, terminal-first, 3-machine private cloud**
 
-**Your secure, terminal-only, 3-machine cloud:**
+- **`node1`**: Docker Swarm manager (PostgreSQL, Harbor, MQTT) – **no public ports except Tailscale**
+- **`node2`**: GPU worker node – private network only
+- **`devbox`**: Global workstation – **only machine with public 80/443**
 
-- **`node1`**: Eink-net Manager (Docker Swarm, MQTT, PostgreSQL, Harbor)
-- **`node2`**: Eink-net Worker + GPU (math_service, heavy apps)
-- **`devbox`**: Global Dev Workstation (Gitea, Nextcloud, Omarchy compute instace API)
-
-> **Opinionated, No web UI for the Eink-net. No VSCode. Neovim-first. Omarchy-first.**
+> **Opinionated stack. No web UIs for the cluster itself. Neovim-first. Omarchy-first. No VSCode.**
 
 ---
-
 ## Features
-
-| Feature | Status |
-|-------|--------|
-| **One-command setup** per machine | `setup.sh --machine node1` |
-| **Omarchy VNC compute instances** | `arch-dev --ram 8G --storage 50G --host devbox` |
-| **Secure VNC + SSH** | TLS-wrapped VNC, SSH key-only |
-| **Global access** | Tailscale + Traefik + Let’s Encrypt |
-| **Git + Files** | Gitea + Nextcloud |
-| **GPU passthrough** | `node2` ready |
-| **Zero public PoC exposure** | Only `devbox` has 80/443 |
+| Feature                        | Status          |
+|-------------------------------|-----------------|
+| One-command setup per machine | `sudo ./setup.sh --machine devbox` |
+| Omarchy KVM instances         | `arch-dev create --ram 8G --storage 50G` |
+| VNC + SSH over SSH tunnels    | No plaintext 5900 or 22 exposed |
+| Global access                 | Tailscale + Traefik + Let’s Encrypt |
+| Git + Files                   | Gitea + Nextcloud on devbox |
+| GPU-ready worker              | node2 has NVIDIA container toolkit |
 
 ---
-
 ## Prerequisites
+| Machine | OS                  | Network Requirements                              |
+|---------|---------------------|---------------------------------------------------|
+| node1   | Ubuntu 22.04 LTS    | Private or firewalled – **Swarm ports NOT public** |
+| node2   | Ubuntu 22.04 LTS    | Private only                                      |
+| devbox  | Ubuntu 22.04 LTS    | Public IP + DNS A record → `devbox.yourdomain.com` |
 
-| Machine | OS | Network |
-|--------|----|--------|
-| `node1` | Ubuntu 22.04 LTS | Public IP |
-| `node2` | Ubuntu 22.04 LTS | Private |
-| `devbox` | Ubuntu 22.04 LTS | Public IP |
-
----
-
-# **DEVBOX SETUP GUIDE**  
-**Ubuntu 22.04 LTS → Fully Secure, Terminal-Only Cloud Workstation**
-
-> **Time: 15 minutes**  
-> **Requirements:**  
-> - Ubuntu 22.04 LTS (fresh install)  
-> - Public IP + DNS A record → `devbox.yourdomain.com`  
-> - 64 GB RAM + SSD  
-> - Internet access
+> **Critical**: Only `devbox` may expose ports 80/443 to the internet.  
+> node1 and node2 must have Docker Swarm ports (2377, 7946, 4789) blocked from the public internet.
 
 ---
+# DEVBOX SETUP GUIDE (Public-facing Workstation)
 
-## **STEP 1: Clone the Repo**
+**Time**: ~30–45 minutes on first run  
+**Requirements**: Fresh Ubuntu 22.04, public IP, 64 GB RAM + NVMe recommended
 
+### STEP 1 – Clone the Repo
 ```bash
 sudo apt update && sudo apt install -y git
 git clone https://git.yourdomain.com/infra/compute-infra.git
 cd compute-infra
 ```
 
----
-
-## **STEP 2: Create `.env.inventory` (Secrets)**
-
+### STEP 2 – Create `.env.inventory` (NEVER commit this file)
 ```bash
+cp .env.inventory.example .env.inventory
 nano .env.inventory
 ```
 
-**Paste this — replace with your real values:**
-
+**.env.inventory.example** (copy this, then replace every value):
 ```env
-# === IPs ===
+# === IPs (private or public) ===
 NODE1_IP=203.0.113.10
 NODE2_IP=10.0.0.2
 DEVBOX_IP=203.0.113.20
@@ -75,186 +60,115 @@ NODE1_DOMAIN=node1.yourdomain.com
 NODE2_DOMAIN=node2.yourdomain.com
 DEVBOX_DOMAIN=devbox.yourdomain.com
 
-# === Secrets ===
-TAILSCALE_AUTHKEY=tskey-auth-abc123def456ghi789
+# === Secrets – CHANGE ALL OF THESE ===
+TAILSCALE_AUTHKEY=tskey-auth-XXXXXXXXXXXXXXXXXXXXXXXX
 LETSENCRYPT_EMAIL=you@yourdomain.com
 
-POSTGRES_PASSWORD=supersecret123
-HARBOR_ADMIN_PASSWORD=admin123
-
+POSTGRES_PASSWORD=generate-a-very-long-random-string-here
+HARBOR_ADMIN_PASSWORD=another-very-long-random-string
 GITEA_ADMIN_USER=admin
-GITEA_ADMIN_PASSWORD=giteapass123
-
+GITEA_ADMIN_PASSWORD=yet-another-long-random-string
 NEXTCLOUD_ADMIN_USER=admin
-NEXTCLOUD_ADMIN_PASSWORD=nextcloudpass123
-NEXTCLOUD_DB_ROOT_PASSWORD=rootpass123
-NEXTCLOUD_DB_PASSWORD=dbpass123
+NEXTCLOUD_ADMIN_PASSWORD=super-long-and-random
+NEXTCLOUD_DB_ROOT_PASSWORD=even-longer-random
+NEXTCLOUD_DB_PASSWORD=random-again
 
-# Your SSH public key (for Omarchy VMs)
+# Your personal SSH public key for Omarchy VMs
 OMARCHY_SSH_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... you@yourlaptop"
 ```
 
-> **Save: `Ctrl+O` → Enter → `Ctrl+X`**
-
----
-
-## **STEP 3: Run Setup (One Command)**
-
+### STEP 3 – Run Setup
 ```bash
 sudo ./setup.sh --machine devbox
 ```
 
-**What it does:**
-1. Installs Docker, KVM, Tailscale, Traefik
-2. Sets up UFW firewall (only 80/443 + Tailscale)
-3. Deploys:
-   - `traefik` (HTTPS reverse proxy)
-   - `gitea` (Git)
-   - `nextcloud` (Files)
-   - `arch-dev-api` (VM manager)
-4. Copies `arch-dev` CLI to `/opt/compute-infra/cli/`
+This installs Docker, Tailscale, Traefik, Gitea, Nextcloud, and the Omarchy API.
 
----
-
-## **STEP 4: Verify Services**
-
-Wait 60 seconds, then:
-
+### STEP 4 – Verify
 ```bash
-curl -k https://localhost/health
-# → {"status":"ok"}
+curl -k https://localhost/health        # → {"status":"ok"}
+tailscale status                        # should show devbox online
 ```
 
-Check URLs (from anywhere):
+Public URLs (Let’s Encrypt certificates issued automatically):
+- Traefik Dashboard : https://traefik.devbox.yourdomain.com
+- Gitea             : https://git.devbox.yourdomain.com
+- Nextcloud         : https://files.devbox.yourdomain.com
 
-| Service | URL |
-|-------|-----|
-| Traefik Dashboard | `https://traefik.devbox.yourdomain.com` |
-| Gitea | `https://git.devbox.yourdomain.com` |
-| Nextcloud | `https://files.devbox.yourdomain.com` |
-
-> **All use Let’s Encrypt TLS automatically.**
-
----
-
-## **STEP 5: Install `arch-dev` CLI on Your Laptop**
-
+### STEP 5 – Install `arch-dev` CLI on Your Laptop
 ```bash
-# From your laptop
+# From your laptop/workstation
 scp devbox.yourdomain.com:/opt/compute-infra/cli/arch-dev ~/.local/bin/
 scp devbox.yourdomain.com:/opt/compute-infra/cli/inventory.yml ~/.arch-dev/
 chmod +x ~/.local/bin/arch-dev
 ```
 
----
-
-## **STEP 6: Launch Your First Omarchy VM**
-
+### STEP 6 – Launch Your First VM
 ```bash
 arch-dev create --ram 8G --storage 50G --host devbox
 ```
 
-**Example Output:**
+Example output:
 ```
 Created: omarchy-8g-50g-x7f9
-SSH: ssh omarchy@devbox.yourdomain.com -p 2217
-VNC: vncviewer -via devbox.yourdomain.com:2217 localhost:5901
-Omarchy ready — connect and code
+SSH port: 2217
+VNC: use SSH tunnel below
 ```
 
----
-
-## **STEP 7: Connect**
-
+### STEP 7 – Connect
 ```bash
-# SSH
+# SSH (recommended)
 ssh omarchy@devbox.yourdomain.com -p 2217
 
-# VNC (graphical desktop)
-vncviewer -via devbox.yourdomain.com:2217 localhost:5901
+# Graphical desktop (VNC over SSH tunnel – NOT TLS-wrapped, just tunneled)
+vncviewer -via omarchy@devbox.yourdomain.com:2217 localhost:5901
 ```
 
-> **You now have a full Arch Linux desktop with Neovim, git, build tools.**
-
 ---
-
-## **Done! Your Devbox Is Live**
-
-| Command | Use |
-|-------|-----|
-| `arch-dev list` | Show running VMs |
-| `arch-dev kill omarchy-8g-50g-x7f9` | Destroy VM |
-| `tailscale status` | Check private network |
-| `sudo ufw status verbose` | Verify firewall |
-
----
-
-## **Next: Set Up `node1` and `node2`**
+## Setting Up node1 and node2 (Private Machines)
 
 ```bash
-# On node1
+# On node1 (run first)
 sudo ./setup.sh --machine node1
 
-# On node2
+# On node2 (after node1 is done)
 sudo ./setup.sh --machine node2
 ```
 
-> They’ll auto-join Swarm and connect via Tailscale.
+They will automatically join the Swarm over Tailscale.  
+**Never expose Swarm ports to the public internet.**
 
 ---
-
-## Services on `devbox`
-
-| Service | URL | Access |
-|-------|-----|--------|
-| **Gitea** | `https://git.yourdomain.com` | Git + browser |
-| **Nextcloud** | `https://files.yourdomain.com` | WebDAV + client |
----
-
-## Security
-
-- **TLS everywhere**: Docker, libvirt, VNC, Traefik
-- **SSH key-only**: No passwords
-- **Per-client firewall**: UFW rules auto-added
-- **Ephemeral ports**: Random VNC/SSH ports
-- **Tailscale**: Private access to `node1`, `node2`
+## Security Notes (No Sugar-Coating)
+- Only `devbox` has public 80/443
+- VNC is **tunneled over SSH**, not TLS-wrapped native VNC
+- All passwords are in plain-text `.env.inventory` on disk – treat it like `/etc/shadow`
+- Swarm control plane is only reachable over Tailscale → internet exposure = instant compromise
+- Supply-chain risk: always verify git tag signatures before running `setup.sh` on a new machine
 
 ---
-
-## Cleanup
-
+## Useful Commands
 ```bash
-# List running instances
-docker ps | grep omarchy
-
-# Kill
-docker rm -f omarchy-8g-50g-abcd1234
+arch-dev list                  # running VMs
+arch-dev kill <name>           # destroy VM
+tailscale status               # private mesh network
+sudo ufw status verbose        # only 80/443 + Tailscale should be open on devbox
 ```
 
 ---
-
 ## Troubleshooting
-
-| Issue | Fix |
-|------|-----|
-| `arch-dev: connection refused` | Check `~/.arch-dev/node3.crt` |
-| VNC black screen | Wait 60s after boot |
-| SSH permission denied | Re-upload your public key |
-| GPU not detected | Run `nvidia-smi` on `node2` |
+| Symptom                        | Fix |
+|--------------------------------|-----|
+| Let’s Encrypt fails            | Check DNS, wait 5 min, check `docker logs traefik` |
+| arch-dev: connection refused   | Wait 30s after `create`, or check API container logs |
+| VNC black screen               | Wait 60–90s for VM boot |
+| node2 didn’t join Swarm        | Re-run setup on node1 first, or manually run `docker swarm join-token worker` |
 
 ---
-
 ## Contributing
-
-1. Fork this repo
-2. Create branch: `feat/gpu-passthrough`
-3. Commit: `git commit -m "Add GPU passthrough"`
-4. Push & PR
-
----
+1. Fork
+2. Branch: `feat/whatever` or `fix/whatever`
+3. Commit + PR
 
 ## License
-
 MIT © Emerson Argueta
-
----
