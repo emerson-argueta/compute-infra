@@ -1,174 +1,151 @@
 # Compute Infra
-**Secure, terminal-first, 3-machine private cloud**
 
-- **`node1`**: Docker Swarm manager (PostgreSQL, Harbor, MQTT) – **no public ports except Tailscale**
-- **`node2`**: GPU worker node – private network only
-- **`devbox`**: Global workstation – **only machine with public 80/443**
+**Terminal-first, 3-machine private cloud**
 
-> **Opinionated stack. No web UIs for the cluster itself. Neovim-first. Omarchy-first. No VSCode.**
+- `node1` → Swarm manager (PostgreSQL, Harbor) – private only
+- `node2` → GPU worker – private only
+- `devbox` → public workstation (Traefik, Gitea, Nextcloud, Omarchy VMs)
 
----
-## Features
-| Feature                        | Status          |
-|-------------------------------|-----------------|
-| One-command setup per machine | `sudo ./setup.sh --machine devbox` |
+**Only devbox exposes ports 80/443 to the internet.**
+
+### Features
+
+| Feature                       | Command                                  |
+| ----------------------------- | ---------------------------------------- |
+| One-command setup per machine | `sudo ./setup.sh devbox`                 |
 | Omarchy KVM instances         | `arch-dev create --ram 8G --storage 50G` |
-| VNC + SSH over SSH tunnels    | No plaintext 5900 or 22 exposed |
-| Global access                 | Tailscale + Traefik + Let’s Encrypt |
-| Git + Files                   | Gitea + Nextcloud on devbox |
-| GPU-ready worker              | node2 has NVIDIA container toolkit |
+| Global access                 | Tailscale + Traefik + Let’s Encrypt      |
+| Git + Files                   | Gitea + Nextcloud on devbox              |
+| GPU-ready worker              | node2 has NVIDIA container toolkit       |
 
----
-## Prerequisites
-| Machine | OS                  | Network Requirements                              |
-|---------|---------------------|---------------------------------------------------|
-| node1   | Ubuntu 22.04 LTS    | Private or firewalled – **Swarm ports NOT public** |
-| node2   | Ubuntu 22.04 LTS    | Private only                                      |
-| devbox  | Ubuntu 22.04 LTS    | Public IP + DNS A record → `devbox.yourdomain.com` |
+### Prerequisites
 
-> **Critical**: Only `devbox` may expose ports 80/443 to the internet.  
-> node1 and node2 must have Docker Swarm ports (2377, 7946, 4789) blocked from the public internet.
+| Machine | OS               | Network                                              |
+| ------- | ---------------- | ---------------------------------------------------- |
+| node1   | Ubuntu 22.04 LTS | Private/firewalled (Swarm ports blocked)             |
+| node2   | Ubuntu 22.04 LTS | Private only                                         |
+| devbox  | Ubuntu 22.04 LTS | Public IP + DNS A record for `devbox.yourdomain.com` |
 
----
-# DEVBOX SETUP GUIDE (Public-facing Workstation)
+**Critical**: Swarm ports (2377, 7946, 4789) must **never** be public.
 
-**Time**: ~30–45 minutes on first run  
-**Requirements**: Fresh Ubuntu 22.04, public IP, 64 GB RAM + NVMe recommended
+### DEVBOX SETUP (~30–45 min)
 
-### STEP 1 – Clone the Repo
+1. **Clone the repo**
+
+   ```bash
+   sudo apt update && sudo apt install -y git
+   git clone https://git.yourdomain.com/infra/compute-infra.git
+   cd compute-infra
+   ```
+
+2. **Create `.env.inventory` (never commit)**
+
+   ```bash
+   cp .env.inventory.example .env.inventory
+   nano .env.inventory
+   ```
+
+   Replace every value in the example file (IPs, domains, secrets, your SSH pubkey for VMs).
+
+3. **Run setup**
+
+   ```bash
+   sudo ./setup.sh devbox
+   ```
+
+4. **Verify**
+
+   ```bash
+   tailscale status                  # devbox should be online
+   curl -k https://localhost/health  # should return {"status":"ok"}
+   ```
+
+Public services (HTTPS + Let’s Encrypt):
+
+- Traefik dashboard: <https://traefik.devbox.yourdomain.com>
+- Gitea: <https://git.devbox.yourdomain.com>
+- Nextcloud: <https://files.devbox.yourdomain.com>
+
+### Install `arch-dev` CLI on your laptop
+
 ```bash
-sudo apt update && sudo apt install -y git
-git clone https://git.yourdomain.com/infra/compute-infra.git
-cd compute-infra
-```
-
-### STEP 2 – Create `.env.inventory` (NEVER commit this file)
-```bash
-cp .env.inventory.example .env.inventory
-nano .env.inventory
-```
-
-**.env.inventory.example** (copy this, then replace every value):
-```env
-# === IPs (private or public) ===
-NODE1_IP=203.0.113.10
-NODE2_IP=10.0.0.2
-DEVBOX_IP=203.0.113.20
-
-# === Domains ===
-NODE1_DOMAIN=node1.yourdomain.com
-NODE2_DOMAIN=node2.yourdomain.com
-DEVBOX_DOMAIN=devbox.yourdomain.com
-
-# === Secrets – CHANGE ALL OF THESE ===
-TAILSCALE_AUTHKEY=tskey-auth-XXXXXXXXXXXXXXXXXXXXXXXX
-LETSENCRYPT_EMAIL=you@yourdomain.com
-
-POSTGRES_PASSWORD=generate-a-very-long-random-string-here
-HARBOR_ADMIN_PASSWORD=another-very-long-random-string
-GITEA_ADMIN_USER=admin
-GITEA_ADMIN_PASSWORD=yet-another-long-random-string
-NEXTCLOUD_ADMIN_USER=admin
-NEXTCLOUD_ADMIN_PASSWORD=super-long-and-random
-NEXTCLOUD_DB_ROOT_PASSWORD=even-longer-random
-NEXTCLOUD_DB_PASSWORD=random-again
-
-# Your personal SSH public key for Omarchy VMs
-OMARCHY_SSH_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... you@yourlaptop"
-```
-
-### STEP 3 – Run Setup
-```bash
-sudo ./setup.sh --machine devbox
-```
-
-This installs Docker, Tailscale, Traefik, Gitea, Nextcloud, and the Omarchy API.
-
-### STEP 4 – Verify
-```bash
-curl -k https://localhost/health        # → {"status":"ok"}
-tailscale status                        # should show devbox online
-```
-
-Public URLs (Let’s Encrypt certificates issued automatically):
-- Traefik Dashboard : https://traefik.devbox.yourdomain.com
-- Gitea             : https://git.devbox.yourdomain.com
-- Nextcloud         : https://files.devbox.yourdomain.com
-
-### STEP 5 – Install `arch-dev` CLI on Your Laptop
-```bash
-# From your laptop/workstation
-scp devbox.yourdomain.com:/opt/compute-infra/cli/arch-dev ~/.local/bin/
-scp devbox.yourdomain.com:/opt/compute-infra/cli/inventory.yml ~/.arch-dev/
+scp vm-manager@devbox.yourdomain.com:/opt/compute-infra/cli/arch-dev ~/.local/bin/arch-dev
 chmod +x ~/.local/bin/arch-dev
 ```
 
-### STEP 6 – Launch Your First VM
+### Use the CLI
+
 ```bash
-arch-dev create --ram 8G --storage 50G --host devbox
+arch-dev --help
+```
+
+**Create a VM**
+
+```bash
+arch-dev create --ram 16G --storage 100G
 ```
 
 Example output:
+
 ```
-Created: omarchy-8g-50g-x7f9
-SSH port: 2217
+Creating omarchy-16g-100g-a1b2c3 (16G, 100G)...
+Created: omarchy-16g-100g-a1b2c3
 VNC: use SSH tunnel below
+
+# Graphical desktop (VNC over SSH tunnel)
+vncviewer -via vm-manager@devbox.yourdomain.com localhost:5907
+
+Tip: Use 'ssh vm-manager@devbox.yourdomain.com virsh console omarchy-16g-100g-a1b2c3' for text console
 ```
 
-### STEP 7 – Connect
+**List VMs**
+
 ```bash
-# SSH (recommended)
-ssh omarchy@devbox.yourdomain.com -p 2217
-
-# Graphical desktop (VNC over SSH tunnel – NOT TLS-wrapped, just tunneled)
-vncviewer -via omarchy@devbox.yourdomain.com:2217 localhost:5901
+arch-dev list
 ```
 
----
-## Setting Up node1 and node2 (Private Machines)
+**Destroy a VM**
+
+```bash
+arch-dev kill omarchy-16g-100g-a1b2c3
+```
+
+### Private nodes (node1 & node2)
 
 ```bash
 # On node1 (run first)
-sudo ./setup.sh --machine node1
+sudo ./setup.sh node1
 
-# On node2 (after node1 is done)
-sudo ./setup.sh --machine node2
+# On node2
+sudo ./setup.sh node2
 ```
 
-They will automatically join the Swarm over Tailscale.  
-**Never expose Swarm ports to the public internet.**
+They join the Swarm over Tailscale automatically.
 
----
-## Security Notes (No Sugar-Coating)
-- Only `devbox` has public 80/443
-- VNC is **tunneled over SSH**, not TLS-wrapped native VNC
-- All passwords are in plain-text `.env.inventory` on disk – treat it like `/etc/shadow`
-- Swarm control plane is only reachable over Tailscale → internet exposure = instant compromise
-- Supply-chain risk: always verify git tag signatures before running `setup.sh` on a new machine
+### Security notes
 
----
-## Useful Commands
+- Only devbox has public ports
+- VNC is bound to localhost and tunneled over SSH (not native TLS)
+- `.env.inventory` contains plaintext secrets – protect it
+- Swarm is only reachable via Tailscale
+- Always verify git tag signatures before running `setup.sh`
+
+### Useful commands
+
 ```bash
-arch-dev list                  # running VMs
-arch-dev kill <name>           # destroy VM
-tailscale status               # private mesh network
-sudo ufw status verbose        # only 80/443 + Tailscale should be open on devbox
+tailscale status
+sudo ufw status verbose
+arch-dev list
 ```
 
----
-## Troubleshooting
-| Symptom                        | Fix |
-|--------------------------------|-----|
-| Let’s Encrypt fails            | Check DNS, wait 5 min, check `docker logs traefik` |
-| arch-dev: connection refused   | Wait 30s after `create`, or check API container logs |
-| VNC black screen               | Wait 60–90s for VM boot |
-| node2 didn’t join Swarm        | Re-run setup on node1 first, or manually run `docker swarm join-token worker` |
+### Troubleshooting
 
----
-## Contributing
-1. Fork
-2. Branch: `feat/whatever` or `fix/whatever`
-3. Commit + PR
+| Issue                   | Fix                                                           |
+| ----------------------- | ------------------------------------------------------------- |
+| Let’s Encrypt fails     | Check DNS, wait 5 min, `docker logs traefik`                  |
+| VNC black screen        | Wait 60–90s after create for VM boot                          |
+| VM creation hangs       | Check `ssh vm-manager@devbox.yourdomain.com virsh list --all` |
+| node2 didn’t join Swarm | Re-run setup on node1 first                                   |
 
-## License
 MIT © Emerson Argueta
+
