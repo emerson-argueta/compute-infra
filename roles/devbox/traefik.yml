@@ -1,23 +1,17 @@
-version: "3.8"
-
+# roles/devbox/traefik.yml
 services:
   traefik:
-    image: traefik:v3.0
-    container_name: traefik
+    image: traefik:v3.6.4
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik_acme:/acme.json
+      - traefik_acme:/acme
       - ./dynamic:/etc/traefik/dynamic:ro
     command:
       - "--log.level=INFO"
-      - "--api.insecure=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=devnet"
+      - "--providers.docker.watch=true"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
@@ -26,20 +20,18 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
       - "--certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}"
-      - "--certificatesresolvers.le.acme.storage=/acme.json"
-    networks:
-      - devnet
+      - "--certificatesresolvers.le.acme.storage=/acme/acme.json"
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_FQDN}`)"
-      - "traefik.http.routers.traefik.entrypoints=websecure"
-      - "traefik.http.routers.traefik.tls.certresolver=le"
-      - "traefik.http.routers.traefik.service=api@internal"
-
-networks:
-  devnet:
-    driver: bridge
+      - traefik.enable=true
+      - traefik.http.routers.dashboard.rule=Host('${TRAEFIK_FQDN}')
+      - traefik.http.routers.dashboard.entrypoints=websecure
+      - traefik.http.routers.dashboard.tls.certresolver=le
+      - traefik.http.routers.dashboard.service=api@internal
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   traefik_acme:
-    driver: local

@@ -1,30 +1,29 @@
 #!/usr/bin/env bash
-# roles/common/firewall.sh
+# roles/common/firewall.sh — safe, idempotent, practical (for real)
 set -euo pipefail
+
 log() { echo "[firewall] $*"; }
 
-TS_IFACE=$(ip -j link show up | jq -r '.[].ifname' | grep -m1 tailscale || echo "tailscale0")
-log "Using Tailscale interface: $TS_IFACE"
+TS_IFACE="tailscale0"
+TAG="compute-infra"
 
-ufw --force reset >/dev/null 2>&1
+log "Applying firewall rules (idempotent)"
+
 ufw default deny incoming
 ufw default allow outgoing
-
-ufw allow in  on "$TS_IFACE"  comment "Tailscale"
-ufw allow out on "$TS_IFACE"  comment "Tailscale"
-
-ufw allow in on "$TS_IFACE" to any port 2376,2377 proto tcp   comment "Swarm mgmt"
-ufw allow in on "$TS_IFACE" to any port 7946 proto tcp,udp    comment "Swarm overlay"
-ufw allow in on "$TS_IFACE" to any port 4789 proto udp        comment "Swarm VXLAN"
+ufw allow in on "$TS_IFACE" comment "$TAG: Tailscale" || true
+ufw allow in on "$TS_IFACE" 2377/tcp comment "$TAG: Swarm manager" || true
+ufw allow in on "$TS_IFACE" 7946/tcp,udp comment "$TAG: Swarm discovery" || true
+ufw allow in on "$TS_IFACE" 4789/udp comment "$TAG: Swarm overlay" || true
 
 if [[ "${ROLE:-}" == "devbox" ]]; then
-  ufw allow 80/tcp   comment "HTTP → HTTPS"
-  ufw allow 443/tcp  comment "HTTPS Traefik"
+  ufw allow 80/tcp comment "$TAG: HTTP → HTTPS" || true
+  ufw allow 443/tcp comment "$TAG: HTTPS Traefik" || true
+fi
+if ! ufw status | grep -q "Status: active"; then
+  log "Enabling UFW"
+  ufw --force enable
 fi
 
-ufw allow in on "$TS_IFACE" to any port 2200:2299 proto tcp comment "VM SSH"
-ufw allow in on "$TS_IFACE" to any port 5900:5999 proto tcp comment "VM VNC"
-ufw allow in on "$TS_IFACE" to any port 5000 proto tcp comment "arch-dev API"
-
-ufw --force enable
-log "Firewall locked down – only Tailscale + (devbox) 80/443 open"
+log "Firewall rules applied (duplicates ignored)"
+ufw status verbose

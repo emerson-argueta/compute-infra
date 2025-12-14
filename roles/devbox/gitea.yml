@@ -1,35 +1,28 @@
-# scripts/devbox/gitea.yml
-version: "3.8"
-
+# roles/devbox/gitea.yml
 services:
   gitea:
-    image: gitea/gitea:latest
-    container_name: gitea
+    image: gitea/gitea:1.25.2
     restart: unless-stopped
     volumes:
       - gitea_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     environment:
       - USER_UID=1000
       - USER_GID=1000
-      # ---- dynamic values from inventory.yml ----
       - GITEA__server__DOMAIN=${GITEA_FQDN}
       - GITEA__server__ROOT_URL=https://${GITEA_FQDN}/
-      # admin credentials from .env.inventory (optional, can be omitted)
-      - GITEA__security__INSTALL_LOCK=true
-      - GITEA__admin__USERNAME=${GITEA_ADMIN_USER:-admin}
-      - GITEA__admin__PASSWORD=${GITEA_ADMIN_PASSWORD}
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gitea.rule=Host(`${GITEA_FQDN}`)"
-      - "traefik.http.routers.gitea.entrypoints=websecure"
-      - "traefik.http.routers.gitea.tls.certresolver=le"
-      - "traefik.http.services.gitea.loadbalancer.server.port=3000"
-    networks:
-      - devnet
-
-networks:
-  devnet:
-    external: true
+      - traefik.enable=true
+      - traefik.http.routers.gitea.rule=Host('${GITEA_FQDN}')
+      - traefik.http.routers.gitea.entrypoints=websecure
+      - traefik.http.routers.gitea.tls.certresolver=le
+      - traefik.http.services.gitea.loadbalancer.server.port=3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   gitea_data:
